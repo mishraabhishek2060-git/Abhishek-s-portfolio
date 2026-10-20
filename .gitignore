@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+.contact-requests.json
+.contact-requests.json.*.tmp
 node_modules/
 npm-debug.log*
 .DS_Store

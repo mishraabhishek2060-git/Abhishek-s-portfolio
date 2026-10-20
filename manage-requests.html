@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#101310">
+  <title>Private contact inbox | Abhishek Mishra</title>
+  <style>
+    :root{color-scheme:dark;--bg:#101310;--panel:#171b17;--ink:#f1f1e9;--muted:#a0a69b;--line:#30372f;--lime:#c5ee68;--sans:Arial,sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans)}main{width:min(850px,calc(100% - 32px));margin:56px auto}a{color:var(--lime)}h1{font-size:clamp(30px,5vw,44px);line-height:1.1}p{color:var(--muted)}.panel,.request{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:22px;margin:16px 0}form{display:grid;gap:12px;max-width:430px}label{display:grid;gap:6px}input{background:#101310;border:1px solid #46503d;color:var(--ink);border-radius:4px;padding:11px;font:inherit}button,.button{border:1px solid #536047;border-radius:4px;background:var(--lime);color:#15190f;padding:10px 14px;font:600 14px var(--sans);cursor:pointer;text-decoration:none;display:inline-block}button.secondary,.button.secondary{background:transparent;color:var(--ink)}button.danger{background:transparent;color:#ffb5a9;border-color:#79534d}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:17px}.request h2{margin:0;font-size:20px}.meta{font-size:13px;color:var(--muted)}.message{white-space:pre-wrap;overflow-wrap:anywhere}.status{min-height:1.5em;color:var(--lime)}.hidden{display:none!important}#requestList{margin-top:20px}
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/">← Back to portfolio</a>
+    <h1>Private contact inbox</h1>
+    <p>Only you can see contact requests after signing in. Contact details are prepared for a reply only after you approve a request.</p>
+    <section id="loginPanel" class="panel">
+      <h2>Owner sign-in</h2>
+      <form id="loginForm"><label for="adminPassword">Private inbox password</label><input id="adminPassword" name="password" type="password" autocomplete="current-password" required><button type="submit">Sign in</button></form>
+      <p id="loginStatus" class="status" aria-live="polite"></p>
+    </section>
+    <section id="inboxPanel" class="hidden">
+      <div class="actions"><button id="refreshButton" class="secondary" type="button">Refresh</button><button id="logoutButton" class="secondary" type="button">Sign out</button></div>
+      <p id="inboxStatus" class="status" aria-live="polite"></p>
+      <div id="requestList"></div>
+    </section>
+  </main>
+  <script>
+    const loginPanel=document.getElementById('loginPanel');
+    const inboxPanel=document.getElementById('inboxPanel');
+    const loginStatus=document.getElementById('loginStatus');
+    const inboxStatus=document.getElementById('inboxStatus');
+    const requestList=document.getElementById('requestList');
+    const loginForm=document.getElementById('loginForm');
+
+    function showLogin(message=''){loginPanel.classList.remove('hidden');inboxPanel.classList.add('hidden');loginStatus.textContent=message}
+    function showInbox(){loginPanel.classList.add('hidden');inboxPanel.classList.remove('hidden')}
+    function textElement(tag,text,className=''){const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el}
+
+    async function loadRequests(){
+      inboxStatus.textContent='Loading…';requestList.replaceChildren();
+      try{
+        const response=await fetch('/api/admin/contact-requests');const data=await response.json();
+        if(response.status===401){showLogin('Please sign in again.');return}
+        if(!response.ok)throw new Error(data.error||'Could not load requests.');
+        showInbox();inboxStatus.textContent=data.requests.length?`${data.requests.length} request(s) in your inbox.`:'No contact requests yet.';
+        for(const item of data.requests)requestList.appendChild(renderRequest(item));
+      }catch(error){inboxStatus.textContent=error.message==='Failed to fetch'?'The portfolio server is unavailable.':error.message}
+    }
+
+    function renderRequest(item){
+      const card=document.createElement('article');card.className='request';
+      card.append(textElement('h2',item.name));
+      card.append(textElement('p',`${item.email} · ${new Date(item.createdAt).toLocaleString()} · ${item.status}`,'meta'));
+      if(item.linkedin){const profile=document.createElement('p');profile.className='meta';const link=document.createElement('a');link.href=item.linkedin;link.target='_blank';link.rel='noopener noreferrer';link.textContent=item.linkedin;profile.append('LinkedIn: ',link);card.append(profile)}
+      card.append(textElement('p',item.message,'message'));
+      const actions=document.createElement('div');actions.className='actions';
+      if(item.status==='pending'){
+        const approve=document.createElement('button');approve.textContent='Approve';approve.addEventListener('click',()=>review(item,'approve',card));actions.append(approve);
+        const decline=document.createElement('button');decline.className='secondary';decline.textContent='Decline';decline.addEventListener('click',()=>review(item,'decline',card));actions.append(decline);
+      }
+      if(item.status==='approved'){
+        const replyLink=document.createElement('a');replyLink.className='button secondary';replyLink.textContent='Prepare reply email';
+        const parts=[];if(item.replyEmail)parts.push(`Email: ${item.replyEmail}`);if(item.replyPhone)parts.push(`Phone: ${item.replyPhone}`);
+        if(parts.length){replyLink.href=`mailto:${item.email}?subject=${encodeURIComponent('Re: your portfolio contact request')}&body=${encodeURIComponent(`Hi ${item.name},\n\nThanks for contacting me. I reviewed your request and am happy to connect.\n\nMy contact details:\n${parts.join('\n')}\n\nRegards,\nAbhishek`)}`;actions.append(replyLink)}else card.append(textElement('p','Set CONTACT_REPLY_EMAIL and/or CONTACT_REPLY_PHONE in the private .env file before preparing a reply.','meta'));
+      }
+      const remove=document.createElement('button');remove.className='danger';remove.textContent='Delete request';remove.addEventListener('click',()=>removeRequest(item,card));actions.append(remove);
+      card.append(actions);return card;
+    }
+
+    async function review(item,action,card){
+      const buttons=card.querySelectorAll('button');buttons.forEach(button=>button.disabled=true);
+      try{
+        const response=await fetch(`/api/admin/contact-requests/${encodeURIComponent(item.id)}/${action}`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const result=await response.json();if(!response.ok)throw new Error(result.error||'Could not update the request.');
+        if(action==='approve'){item.status='approved';item.replyEmail=result.reply?.email||'';item.replyPhone=result.reply?.phone||'';card.replaceWith(renderRequest(item))}
+        else{item.status='declined';card.replaceWith(renderRequest(item))}
+        inboxStatus.textContent=action==='approve'?'Approved. Review the reply draft before sending it.':'Declined. No contact details were shared.';
+      }catch(error){inboxStatus.textContent=error.message;buttons.forEach(button=>button.disabled=false)}
+    }
+
+    async function removeRequest(item,card){
+      if(!window.confirm(`Permanently delete the request from ${item.name}?`))return;
+      try{
+        const response=await fetch(`/api/admin/contact-requests/${encodeURIComponent(item.id)}/delete`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        const result=await response.json();if(!response.ok)throw new Error(result.error||'Could not delete the request.');
+        card.remove();inboxStatus.textContent='Request deleted.';
+      }catch(error){inboxStatus.textContent=error.message}
+    }
+
+    loginForm.addEventListener('submit',async event=>{
+      event.preventDefault();loginStatus.textContent='Signing in…';
+      try{
+        const response=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:loginForm.password.value})});
+        const result=await response.json();if(!response.ok)throw new Error(result.error||'Sign-in failed.');
+        loginForm.reset();await loadRequests();
+      }catch(error){loginStatus.textContent=error.message}
+    });
+    document.getElementById('refreshButton').addEventListener('click',loadRequests);
+    document.getElementById('logoutButton').addEventListener('click',async()=>{await fetch('/api/admin/logout',{method:'POST'});showLogin('You are signed out.')});
+    loadRequests();
+  </script>
+</body>
+</html>
