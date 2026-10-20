@@ -1,4 +1,4 @@
-# Mishra Ji Abhishek Portfolio
+# Abhishek Mishra Portfolio
 
 Static, responsive portfolio for GitHub Pages.
 
@@ -7,7 +7,7 @@ Static, responsive portfolio for GitHub Pages.
 1. Push this repository to GitHub.
 2. Open **Settings → Pages** for the repository.
 3. Under **Build and deployment**, choose **Deploy from a branch**, then select `main` and `/ (root)`.
-4. Save and wait for the Pages deployment to finish. The project site URL is `https://mishraabhishek2060-git.github.io/Abhishek-s-portfolio/`.
+4. Save and wait for the Pages deployment to finish. The project site URL is `https://mishraabhishek2060-git.github.io/Mishraji-Abhishek-portfolio/`.
 
 The portfolio is static and has no server or secret configuration. Its Q&A uses built-in answers; email opens the visitor's email application.
 
